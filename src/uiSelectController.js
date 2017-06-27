@@ -531,14 +531,15 @@ uis.controller('uiSelectCtrl',
     var input = ctrl.searchInput[0],
         container = ctrl.$element[0],
         calculateContainerWidth = function() {
+          var innerWidth =_getInnerWidth(container);
           // Return the container width only if the search input is visible
-          return container.clientWidth * !!input.offsetParent;
+          return innerWidth * !!input.offsetParent;
         },
         updateIfVisible = function(containerWidth) {
           if (containerWidth === 0) {
             return false;
           }
-          var inputWidth = containerWidth - input.offsetLeft;
+          var inputWidth = containerWidth - input.offsetLeft - 20;
           if (inputWidth < 50) inputWidth = containerWidth;
           ctrl.searchInput.css('width', inputWidth+'px');
           return true;
@@ -562,6 +563,17 @@ uis.controller('uiSelectCtrl',
       }
     });
   };
+
+  function _getInnerWidth(element) {
+    if ( typeof window.getComputedStyle === 'undefined' ) {
+      return element.clientWidth - 20;
+    }
+    var computedStyle = window.getComputedStyle(element);
+    var clientWidth = element.clientWidth;
+    var paddingLeft = parseFloat(computedStyle.paddingLeft, 10);
+    var innerWidth = clientWidth - paddingLeft;
+    return innerWidth;
+  }
 
   function _handleDropDownSelection(key) {
     var processed = true;
