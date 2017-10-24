@@ -247,6 +247,8 @@ uis.directive('uiSelect',
           transcludedNoChoice.removeAttr('data-ui-select-no-choice'); // Properly handle HTML5 data-attributes
           if (transcludedNoChoice.length == 1) {
             element.querySelectorAll('.ui-select-no-choice').replaceWith(transcludedNoChoice);
+          } else {
+            element.querySelectorAll('.ui-select-no-choice').remove();
           }
 
           var transcludedHeader = transcluded.querySelectorAll('.ui-select-header');
@@ -265,6 +267,11 @@ uis.directive('uiSelect',
             element.querySelectorAll('.ui-select-footer').replaceWith(transcludedFooter);
           } else {
             element.querySelectorAll('.ui-select-footer').remove();
+          }
+
+          var dropdown = element.querySelector('.ui-select-choices').parentElement;
+          if (dropdown.childElementCount === 1) {
+            dropdown.replaceWith(dropdown.firstElementChild);
           }
         });
 
