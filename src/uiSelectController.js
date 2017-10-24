@@ -158,7 +158,7 @@ uis.controller('uiSelectCtrl',
       } else {
         $timeout(function () {
           ctrl.focusSearchInput(initSearchValue);
-          if(!ctrl.tagging.isActivated && ctrl.items.length > 1) {
+          if(!ctrl.tagging.isActivated && ctrl.items.length > 1 && ctrl.open) {
             _ensureHighlightVisible();
           }
         });
@@ -175,9 +175,12 @@ uis.controller('uiSelectCtrl',
     ctrl.searchInput[0].focus();
   };
 
-  ctrl.findGroupByName = function(name) {
+  ctrl.findGroupByName = function(name, noStrict) {
     return ctrl.groups && ctrl.groups.filter(function(group) {
-      return group.name === name;
+      if (noStrict)
+        return group.name == name;
+      else
+        return group.name === name;
     })[0];
   };
 
