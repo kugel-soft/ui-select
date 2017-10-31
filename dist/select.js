@@ -1,7 +1,7 @@
 /*!
  * ui-select
  * http://github.com/angular-ui/ui-select
- * Version: 0.19.8 - 2017-09-05T07:42:54.041Z
+ * Version: 0.19.8 - 2017-10-31T19:08:04.107Z
  * License: MIT
  */
 
@@ -435,7 +435,7 @@ uis.controller('uiSelectCtrl',
       } else {
         $timeout(function () {
           ctrl.focusSearchInput(initSearchValue);
-          if(!ctrl.tagging.isActivated && ctrl.items.length > 1) {
+          if(!ctrl.tagging.isActivated && ctrl.items.length > 1 && ctrl.open) {
             _ensureHighlightVisible();
           }
         });
@@ -452,9 +452,12 @@ uis.controller('uiSelectCtrl',
     ctrl.searchInput[0].focus();
   };
 
-  ctrl.findGroupByName = function(name) {
+  ctrl.findGroupByName = function(name, noStrict) {
     return ctrl.groups && ctrl.groups.filter(function(group) {
-      return group.name === name;
+      if (noStrict)
+        return group.name == name;
+      else
+        return group.name === name;
     })[0];
   };
 
@@ -1302,8 +1305,6 @@ uis.directive('uiSelect',
           transcludedNoChoice.removeAttr('data-ui-select-no-choice'); // Properly handle HTML5 data-attributes
           if (transcludedNoChoice.length == 1) {
             element.querySelectorAll('.ui-select-no-choice').replaceWith(transcludedNoChoice);
-          } else {
-            element.querySelectorAll('.ui-select-no-choice').remove();
           }
 
           var transcludedHeader = transcluded.querySelectorAll('.ui-select-header');
@@ -1322,11 +1323,6 @@ uis.directive('uiSelect',
             element.querySelectorAll('.ui-select-footer').replaceWith(transcludedFooter);
           } else {
             element.querySelectorAll('.ui-select-footer').remove();
-          }
-
-          var dropdown = element.querySelector('.ui-select-choices').parentElement;
-          if (dropdown.childElementCount === 1) {
-            dropdown.replaceWith(dropdown.firstElementChild);
           }
         });
 
@@ -1535,6 +1531,85 @@ uis.directive('uiSelectHeader', ['uiSelectConfig', function (uiSelectConfig) {
     restrict: 'EA',
     transclude: true,
     replace: true
+  };
+}]);
+
+uis.directive('uiSelectHeaderGroupSelectable', ['$timeout', function($timeout) {
+  return {
+    restrict: 'EA',
+    require: ['^uiSelect'],
+    scope: {
+      isEnabled: "<?uiSelectHeaderGroupSelectable"
+    },
+    link: function ($scope, $element, attrs, select) {
+      // TODO Why that???
+      var $select = select[0];
+      if (angular.isUndefined($scope.isEnabled)) {
+        $scope.isEnabled = true;
+      }
+
+      function isEnabled() {
+        return angular.isUndefined($scope.isEnabled) || $scope.isEnabled;
+      }
+
+      function getElements() {
+        if ($select.multiple && $select.groups) {
+          return $element.querySelectorAll('.ui-select-choices-group-label');
+        } else {
+          console.error('Use uiSelectHeaderGroupSelectable with no multiple uiSelect or without groupBy');
+          return [];
+        }
+      }
+
+      function enableClick() {
+        if (isEnabled()) {
+          angular.forEach(getElements(), function(e) {
+            var element = angular.element(e);
+
+            // Check the onClick event is not already listen
+            if (!element.hasClass('ui-select-header-group-selectable')) {
+              element.addClass('ui-select-header-group-selectable');
+
+              element.on('click', function () {
+                if (isEnabled()) {
+                  var group = $select.findGroupByName(element.text(), true);
+
+                  angular.forEach(group.items, function(item) {
+                    $timeout(function() {
+                      $select.select(item, false, ' ');
+                    });
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+
+      function disableClick() {
+        if (!isEnabled()) {
+          angular.forEach(getElements(), function(e) {
+            var element = angular.element(e);
+            element.removeClass('ui-select-header-group-selectable');
+            element.off('click');
+          });
+        }
+      }
+
+      // Watch element to trigger select event
+      $scope.$watch('isEnabled', function() {
+        if (!isEnabled()) {
+          disableClick();
+        } else {
+          enableClick();
+        }
+      });
+
+      $scope.$watch('$select.groups', enableClick);
+      $scope.$watch(function() {
+        return $select.selected && $select.selected.length ? $select.selected.length : -1;
+      }, enableClick);
+    }
   };
 }]);
 
@@ -2495,14 +2570,6 @@ $templateCache.put('bootstrap/match.tpl.html','<div class="ui-select-match" ng-h
 $templateCache.put('bootstrap/no-choice.tpl.html','<ul class="ui-select-no-choice dropdown-menu" ng-show="$select.items.length == 0"><li ng-transclude=""></li></ul>');
 $templateCache.put('bootstrap/select-multiple.tpl.html','<div class="ui-select-container ui-select-multiple ui-select-bootstrap dropdown form-control" ng-class="{open: $select.open}"><div><div class="ui-select-match"></div><span ng-show="$select.open && $select.refreshing && $select.spinnerEnabled" class="ui-select-refreshing {{$select.spinnerClass}}"></span> <input type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="ui-select-search input-xs" placeholder="{{$select.getPlaceholder()}}" ng-disabled="$select.disabled" ng-click="$select.activate()" ng-model="$select.search" role="combobox" aria-expanded="{{$select.open}}" aria-label="{{$select.baseTitle}}" ng-class="{\'spinner\': $select.refreshing}" data-disallow-drop="data-disallow-drop"></div><div ng-show="$select.open && $select.items.length > 0" class="ui-select-dropdown dropdown-menu"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');
 $templateCache.put('bootstrap/select.tpl.html','<div class="ui-select-container ui-select-bootstrap dropdown" ng-class="{open: $select.open}"><div class="ui-select-match"></div><span ng-show="$select.open && $select.refreshing && $select.spinnerEnabled" class="ui-select-refreshing {{$select.spinnerClass}}"></span> <input type="search" autocomplete="off" tabindex="-1" aria-expanded="true" aria-label="{{ $select.baseTitle }}" aria-owns="ui-select-choices-{{ $select.generatedId }}" class="form-control ui-select-search" ng-class="{ \'ui-select-search-hidden\' : !$select.searchEnabled }" placeholder="{{$select.placeholder}}" ng-model="$select.search" ng-show="$select.open"><div ng-show="$select.open && $select.items.length > 0" class="ui-select-dropdown dropdown-menu"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');
-$templateCache.put('selectize/choices.tpl.html','<div class="ui-select-choices"><div class="ui-select-choices-content selectize-dropdown-content"><div class="ui-select-choices-group optgroup"><div ng-show="$select.isGrouped" class="ui-select-choices-group-label optgroup-header" ng-bind="$group.name"></div><div role="option" class="ui-select-choices-row" ng-class="{active: $select.isActive(this), disabled: $select.isDisabled(this)}"><div class="option ui-select-choices-row-inner" data-selectable=""></div></div></div></div></div>');
-$templateCache.put('selectize/footer.tpl.html','<div class="ui-select-footer" ng-transclude=""></div>');
-$templateCache.put('selectize/header.tpl.html','<div class="ui-select-header" ng-transclude=""></div>');
-$templateCache.put('selectize/match-multiple.tpl.html','<div class="ui-select-match" data-value="" ng-repeat="$item in $select.selected track by $index" ng-click="$selectMultiple.activeMatchIndex = $index;" ng-class="{\'active\':$selectMultiple.activeMatchIndex === $index}" ui-select-sort="$select.selected"><span class="ui-select-match-item" ng-class="{\'select-locked\':$select.isLocked(this, $index)}"><span uis-transclude-append=""></span> <span class="remove ui-select-match-close" ng-hide="$select.disabled" ng-click="$selectMultiple.removeChoice($index)">&times;</span></span></div>');
-$templateCache.put('selectize/match.tpl.html','<div ng-hide="$select.searchEnabled && ($select.open || $select.isEmpty())" class="ui-select-match"><span ng-show="!$select.searchEnabled && ($select.isEmpty() || $select.open)" class="ui-select-placeholder text-muted">{{$select.placeholder}}</span> <span ng-hide="$select.isEmpty() || $select.open" ng-transclude=""></span></div>');
-$templateCache.put('selectize/no-choice.tpl.html','<div class="ui-select-no-choice selectize-dropdown" ng-show="$select.items.length == 0"><div class="selectize-dropdown-content"><div data-selectable="" ng-transclude=""></div></div></div>');
-$templateCache.put('selectize/select-multiple.tpl.html','<div class="ui-select-container selectize-control multi plugin-remove_button" ng-class="{\'open\': $select.open}"><div class="selectize-input" ng-class="{\'focus\': $select.open, \'disabled\': $select.disabled, \'selectize-focus\' : $select.focus}" ng-click="$select.open && !$select.searchEnabled ? $select.toggle($event) : $select.activate()"><div class="ui-select-match"></div><input type="search" autocomplete="off" tabindex="-1" class="ui-select-search" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled}" placeholder="{{$select.getPlaceholder()}}" ng-model="$select.search" ng-disabled="$select.disabled" aria-expanded="{{$select.open}}" aria-label="{{ $select.baseTitle }}" data-disallow-drop="data-disallow-drop"></div><div ng-show="$select.open" class="ui-select-dropdown selectize-dropdown" ng-class="{\'single\': !$select.multiple, \'multi\': $select.multiple}"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');
-$templateCache.put('selectize/select.tpl.html','<div class="ui-select-container selectize-control single" ng-class="{\'open\': $select.open}"><div class="selectize-input" ng-class="{\'focus\': $select.open, \'disabled\': $select.disabled, \'selectize-focus\' : $select.focus}" ng-click="$select.open && !$select.searchEnabled ? $select.toggle($event) : $select.activate()"><div class="ui-select-match"></div><input type="search" autocomplete="off" tabindex="-1" class="ui-select-search ui-select-toggle" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled}" ng-click="$select.toggle($event)" placeholder="{{$select.placeholder}}" ng-model="$select.search" ng-hide="!$select.isEmpty() && !$select.open" ng-disabled="$select.disabled" aria-label="{{ $select.baseTitle }}"></div><div ng-show="$select.open" class="ui-select-dropdown selectize-dropdown" ng-class="{\'single\': !$select.multiple, \'multi\': $select.multiple}"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');
 $templateCache.put('select2/choices.tpl.html','<ul tabindex="-1" class="ui-select-choices ui-select-choices-content select2-results"><li class="ui-select-choices-group" ng-class="{\'select2-result-with-children\': $select.choiceGrouped($group) }"><div ng-show="$select.choiceGrouped($group)" class="ui-select-choices-group-label select2-result-label" ng-bind="$group.name"></div><ul id="ui-select-choices-{{ $select.generatedId }}" ng-class="{\'select2-result-sub\': $select.choiceGrouped($group), \'select2-result-single\': !$select.choiceGrouped($group) }"><li role="option" ng-attr-id="ui-select-choices-row-{{ $select.generatedId }}-{{$index}}" class="ui-select-choices-row" ng-class="{\'select2-highlighted\': $select.isActive(this), \'select2-disabled\': $select.isDisabled(this)}"><div class="select2-result-label ui-select-choices-row-inner"></div></li></ul></li></ul>');
 $templateCache.put('select2/footer.tpl.html','<div class="ui-select-footer" ng-transclude=""></div>');
 $templateCache.put('select2/header.tpl.html','<div class="ui-select-header" ng-transclude=""></div>');
@@ -2510,4 +2577,12 @@ $templateCache.put('select2/match-multiple.tpl.html','<span class="ui-select-mat
 $templateCache.put('select2/match.tpl.html','<a class="select2-choice ui-select-match" ng-class="{\'select2-default\': $select.isEmpty()}" ng-click="$select.toggle($event)" aria-label="{{ $select.baseTitle }} select"><span ng-show="$select.isEmpty()" class="select2-chosen">{{$select.placeholder}}</span> <span ng-hide="$select.isEmpty()" class="select2-chosen" ng-transclude=""></span> <abbr ng-if="$select.allowClear && !$select.isEmpty()" class="select2-search-choice-close" ng-click="$select.clear($event)"></abbr> <span class="select2-arrow ui-select-toggle"><b></b></span></a>');
 $templateCache.put('select2/no-choice.tpl.html','<div class="ui-select-no-choice dropdown" ng-show="$select.items.length == 0"><div class="dropdown-content"><div data-selectable="" ng-transclude=""></div></div></div>');
 $templateCache.put('select2/select-multiple.tpl.html','<div class="ui-select-container ui-select-multiple select2 select2-container select2-container-multi" ng-class="{\'select2-container-active select2-dropdown-open open\': $select.open, \'select2-container-disabled\': $select.disabled}"><ul class="select2-choices"><span class="ui-select-match"></span><li class="select2-search-field"><input type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" role="combobox" aria-expanded="true" aria-owns="ui-select-choices-{{ $select.generatedId }}" aria-label="{{ $select.baseTitle }}" aria-activedescendant="ui-select-choices-row-{{ $select.generatedId }}-{{ $select.activeIndex }}" class="select2-input ui-select-search" placeholder="{{$select.getPlaceholder()}}" ng-disabled="$select.disabled" ng-hide="$select.disabled" ng-model="$select.search" ng-click="$select.activate()" style="width: 34px;" data-disallow-drop="data-disallow-drop"></li></ul><div class="ui-select-dropdown select2-drop select2-with-searchbox select2-drop-active" ng-class="{\'select2-display-none\': !$select.open || $select.items.length === 0}"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div></div>');
-$templateCache.put('select2/select.tpl.html','<div class="ui-select-container select2 select2-container" ng-class="{\'select2-container-active select2-dropdown-open open\': $select.open, \'select2-container-disabled\': $select.disabled, \'select2-container-active\': $select.focus, \'select2-allowclear\': $select.allowClear && !$select.isEmpty()}"><div class="ui-select-match"></div><div class="ui-select-dropdown select2-drop select2-with-searchbox select2-drop-active" ng-class="{\'select2-display-none\': !$select.open}"><div class="search-container" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled, \'select2-search\':$select.searchEnabled}"><input type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ng-class="{\'select2-active\': $select.refreshing}" role="combobox" aria-expanded="true" aria-owns="ui-select-choices-{{ $select.generatedId }}" aria-label="{{ $select.baseTitle }}" class="ui-select-search select2-input" ng-model="$select.search"></div><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-no-choice"></div><div class="ui-select-footer"></div></div></div>');}]);
+$templateCache.put('select2/select.tpl.html','<div class="ui-select-container select2 select2-container" ng-class="{\'select2-container-active select2-dropdown-open open\': $select.open, \'select2-container-disabled\': $select.disabled, \'select2-container-active\': $select.focus, \'select2-allowclear\': $select.allowClear && !$select.isEmpty()}"><div class="ui-select-match"></div><div class="ui-select-dropdown select2-drop select2-with-searchbox select2-drop-active" ng-class="{\'select2-display-none\': !$select.open}"><div class="search-container" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled, \'select2-search\':$select.searchEnabled}"><input type="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ng-class="{\'select2-active\': $select.refreshing}" role="combobox" aria-expanded="true" aria-owns="ui-select-choices-{{ $select.generatedId }}" aria-label="{{ $select.baseTitle }}" class="ui-select-search select2-input" ng-model="$select.search"></div><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-no-choice"></div><div class="ui-select-footer"></div></div></div>');
+$templateCache.put('selectize/choices.tpl.html','<div class="ui-select-choices"><div class="ui-select-choices-content selectize-dropdown-content"><div class="ui-select-choices-group optgroup"><div ng-show="$select.isGrouped" class="ui-select-choices-group-label optgroup-header" ng-bind="$group.name"></div><div role="option" class="ui-select-choices-row" ng-class="{active: $select.isActive(this), disabled: $select.isDisabled(this)}"><div class="option ui-select-choices-row-inner" data-selectable=""></div></div></div></div></div>');
+$templateCache.put('selectize/footer.tpl.html','<div class="ui-select-footer" ng-transclude=""></div>');
+$templateCache.put('selectize/header.tpl.html','<div class="ui-select-header" ng-transclude=""></div>');
+$templateCache.put('selectize/match-multiple.tpl.html','<div class="ui-select-match" data-value="" ng-repeat="$item in $select.selected track by $index" ng-click="$selectMultiple.activeMatchIndex = $index;" ng-class="{\'active\':$selectMultiple.activeMatchIndex === $index}" ui-select-sort="$select.selected"><span class="ui-select-match-item" ng-class="{\'select-locked\':$select.isLocked(this, $index)}"><span uis-transclude-append=""></span> <span class="remove ui-select-match-close" ng-hide="$select.disabled" ng-click="$selectMultiple.removeChoice($index)">&times;</span></span></div>');
+$templateCache.put('selectize/match.tpl.html','<div ng-hide="$select.searchEnabled && ($select.open || $select.isEmpty())" class="ui-select-match"><span ng-show="!$select.searchEnabled && ($select.isEmpty() || $select.open)" class="ui-select-placeholder text-muted">{{$select.placeholder}}</span> <span ng-hide="$select.isEmpty() || $select.open" ng-transclude=""></span></div>');
+$templateCache.put('selectize/no-choice.tpl.html','<div class="ui-select-no-choice selectize-dropdown" ng-show="$select.items.length == 0"><div class="selectize-dropdown-content"><div data-selectable="" ng-transclude=""></div></div></div>');
+$templateCache.put('selectize/select-multiple.tpl.html','<div class="ui-select-container selectize-control multi plugin-remove_button" ng-class="{\'open\': $select.open}"><div class="selectize-input" ng-class="{\'focus\': $select.open, \'disabled\': $select.disabled, \'selectize-focus\' : $select.focus}" ng-click="$select.open && !$select.searchEnabled ? $select.toggle($event) : $select.activate()"><div class="ui-select-match"></div><input type="search" autocomplete="off" tabindex="-1" class="ui-select-search" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled}" placeholder="{{$select.getPlaceholder()}}" ng-model="$select.search" ng-disabled="$select.disabled" aria-expanded="{{$select.open}}" aria-label="{{ $select.baseTitle }}" data-disallow-drop="data-disallow-drop"></div><div ng-show="$select.open" class="ui-select-dropdown selectize-dropdown" ng-class="{\'single\': !$select.multiple, \'multi\': $select.multiple}"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');
+$templateCache.put('selectize/select.tpl.html','<div class="ui-select-container selectize-control single" ng-class="{\'open\': $select.open}"><div class="selectize-input" ng-class="{\'focus\': $select.open, \'disabled\': $select.disabled, \'selectize-focus\' : $select.focus}" ng-click="$select.open && !$select.searchEnabled ? $select.toggle($event) : $select.activate()"><div class="ui-select-match"></div><input type="search" autocomplete="off" tabindex="-1" class="ui-select-search ui-select-toggle" ng-class="{\'ui-select-search-hidden\':!$select.searchEnabled}" ng-click="$select.toggle($event)" placeholder="{{$select.placeholder}}" ng-model="$select.search" ng-hide="!$select.isEmpty() && !$select.open" ng-disabled="$select.disabled" aria-label="{{ $select.baseTitle }}"></div><div ng-show="$select.open" class="ui-select-dropdown selectize-dropdown" ng-class="{\'single\': !$select.multiple, \'multi\': $select.multiple}"><div class="ui-select-header"></div><div class="ui-select-choices"></div><div class="ui-select-footer"></div></div><div class="ui-select-no-choice"></div></div>');}]);
